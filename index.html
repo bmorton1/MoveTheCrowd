@@ -1,0 +1,204 @@
+<html>
+<head>
+	<title>Move The Crowd</title>
+	<style type="text/css">
+	</style>
+	<script type="text/javascript" src="dist/oflow.js"></script>
+	<script type="text/javascript" src="colors.js"></script>
+	<script type="text/javascript" src="colors.js"></script>
+	<script type="text/javascript" src="canvas2image.js"></script>
+	<script type="text/javascript" src="FCClientJS.js"></script>
+	<script type="text/javascript" src="recorder.js"> </script>
+	<script type="text/javascript">
+
+
+	// Optical Flow function
+	function main() {
+		var zoneSize = 4,
+		videoElement = document.getElementById('videoOut'),
+		videoWidth = videoElement.videoWidth,
+		videoHeight = videoElement.videoHeight;
+		webCamFlow = new oflow.VideoFlow(videoElement, zoneSize),
+		canvas = document.getElementById('scene'),
+		sceneCtx = canvas.getContext('2d'),
+		sceneWidth = canvas.width,
+		sceneHeight = canvas.height;
+
+		var queue = [];
+
+		webCamFlow.onCalculated( 
+			function (direciton) {
+				// render zones
+				oFlowSum = 0
+				sceneCtx.clearRect(0, 0, sceneWidth, sceneHeight);
+				for(var i = 0; i < direciton.zones.length; ++i) {
+					var zone = direciton.zones[i];
+					sceneCtx.strokeStyle = getDirectionalColor(zone.u, zone.v);
+					sceneCtx.beginPath();
+					sceneCtx.moveTo(zone.x,zone.y);
+					sceneCtx.lineTo((zone.x - zone.u), zone.y + zone.v);
+					sceneCtx.stroke();
+
+					oFlowSum = oFlowSum + Math.pow((zone.x - zone.u), 2) +  Math.pow((zone.y - zone.v),2);
+				}
+
+				oFlowAvg = Math.floor(oFlowSum / direciton.zones.length);
+
+				if (queue.length < 10) { 
+					queue.push(oFlowAvg); // Add to the end of the array
+				}
+
+				else {
+					queue.shift();  // Remove first element
+					queue.push(oFlowAvg);   // Add element to the end of the array
+				}
+
+				// Get moving average
+				var movFlowAvg = 0;
+				for (var i = 0; i< queue.length; i++) {
+					movFlowAvg += (queue[i] / queue.length);
+				}
+				
+				document.getElementById('activityLevel').innerHTML = '<font color = "white">' + movFlowAvg + '</font>';
+			}
+		);
+
+		webCamFlow.startCapture();
+	}
+
+	// Image capture from video functions
+	function getURIformcanvas() {
+		var ImageURItoShow = "";
+		var canvasFromVideo = document.getElementById("imageView");
+		if (canvasFromVideo.getContext) {
+			var ctx = canvasFromVideo.getContext("2d"); // Get the context for the canvas.canvasFromVideo.
+			var ImageURItoShow = canvasFromVideo.toDataURL("image/png");
+
+		}
+	}
+
+	var videoId = 'video';
+	function capture() {
+		var video = document.getElementById("videoOut");
+		var canvasDraw = document.getElementById('imageView');
+		var w = canvasDraw.width;
+		var h = canvasDraw.height;
+		var ctxDraw = canvasDraw.getContext('2d');
+
+		ctxDraw.clearRect(0, 0, w, h);
+
+		ctxDraw.drawImage(video, 0, 0, w, h);
+		ctxDraw.save();
+
+
+		getURIformcanvas();   
+	 }
+
+		var onFail = function(e) {
+			console.log('Rejected!', e);
+		};
+
+		var onSuccess = function(s) {
+			var context = new webkitAudioContext();
+			var mediaStreamSource = context.createMediaStreamSource(s);
+			recorder = new Recorder(mediaStreamSource);
+			recorder.record();
+
+		// audio loopback
+		// mediaStreamSource.connect(context.destination);
+	}
+
+	window.URL = window.URL || window.webkitURL;
+	navigator.getUserMedia  = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+
+	var recorder;
+	var audio = document.querySelector('audio');
+
+	// Start audio recording
+	function startRecording() {
+		if (navigator.getUserMedia) {
+			navigator.getUserMedia({audio: true}, onSuccess, onFail);
+		} 
+		else {
+			console.log('navigator.getUserMedia not present');
+		}
+	}
+
+	// Stop audio recording
+	function stopRecording() {
+		recorder.stop();
+		recorder.exportWAV(
+			function(s) {
+				audio.src = window.URL.createObjectURL(s);
+			}
+		);
+	}
+
+
+
+	// Add canvas to div
+	function loadCanvas(id) {
+        var canvas = document.createElement('canvas');
+        var vid = document.getElementById("videoOut");
+
+  //       vid.addEventListener( "loadedmetadata", 
+  //       	function (e) {
+
+  //       		widthRatio = this.videoWidth/this.width;
+  //   			canvas.width = this.videoWidth / widthRatio;
+  //   			canvas.height = this.videoHeight / widthRatio;
+		// 	}, 
+		// false );
+
+        div = document.getElementById(id); 
+        canvas.id     = "scene";
+        canvas.width  = 540;
+        canvas.height = 405;
+        canvas.style.zIndex   = 1;
+        div.appendChild(canvas)
+    }
+
+	</script>
+</head>
+
+ <body onload="main()" style='background-color: black'>
+
+	<h1 id = 'title' style="color:white;text-align:center"> Move The Crowd </h1>
+
+	<div id = 'container' style="text-align:center;height:800px;margin:0 auto;">
+		<!-- Live Image Div -->
+		<div id = 'live' style="display:inline-block;width:600px;height:500px;color:white;text-align:center;">
+			Live Image
+			<video id='videoOut' width='540px' height='405px' controls>
+			<source src="HarlemShake1.mp4" type="video/mp4">
+			</video>
+			<br>
+			<button onClick="capture()" style="width: 64px;border: solid 2px #ccc;">Capture</button>
+			<br>
+		</div>
+
+		<!-- Optical Flow Div -->
+		<div id = 'flow' style="display:inline-block;width:600px;height:500px;color:white;text-align:center;">
+			Optical Flow
+			<script type="text/javascript">
+				loadCanvas("flow");
+			</script>
+		</div>
+
+		<div id='activityLevel'>
+			<font color="white">Test</font>
+		</div>
+
+		<div id="container" style="border:none">
+			<canvas id="imageView" style="display:none; left: 0; top: 0; z-index: 0;border:none" width="300" height="200"></canvas>
+		</div>
+
+		<audio id="audio" controls autoplay></audio>
+		<input onclick="startRecording()" type="button" value="start recording" />
+		<input onclick="stopRecording()" type="button" value="stop recording and play" />
+	</div>
+
+	<div id = "debug">
+	</div>
+</body>
+</html>
